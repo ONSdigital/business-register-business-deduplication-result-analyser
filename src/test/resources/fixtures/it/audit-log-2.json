@@ -1,0 +1,2 @@
+{"line": {"id": "a665a451", "data": "Kainos PLC,4-6 Upper Crescent,BT7 1NT,,763"}, "result": {"category": "LineRejected", "records": []}}
+{"line": {"id": "a665a452", "data": "Mikrotechnic,13 Ivy Lane,CT3 4GY,,14"}, "result": {"category": "RecordMatched", "records": [{"id": "RBIP#100", "matchKey": "MIKROTECHNIC"}]}}

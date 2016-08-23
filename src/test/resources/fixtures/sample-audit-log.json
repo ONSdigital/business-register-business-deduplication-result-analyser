@@ -1,0 +1,5 @@
+{"line": {"id": "a665a451", "data": "Kainos PLC,4-6 Upper Crescent,BT7 1NT,,763"}, "result": {"category": "LineRejected"}}
+{"line": {"id": "a665a452", "data": "Mikrotechnic,13 Ivy Lane,CT3 4GY,,14"}, "result": {"category": "RecordCreated", "records": [{"id": "RBIP#101", "matchKey": "MIKROTECHNIC"}]}}
+{"line": {"id": "a665a453", "data": "Sunny's Surplus,72 Boat Lane,RG9 6JP,,8"}, "result": {"category": "RecordMatched", "records": [{"id": "RBIP#100", "matchKey": "SUNNYSSURPLUS"}]}}
+{"line": {"id": "a665a454", "data": "Indiewealth,85 Trinity Crescent,S30 2BG,,87"}, "result": {"category": "RecordAlmostMatched", "records": [{"id": "RBIP#10", "matchScore": 0.90}]}}
+{"line": {"id": "a665a455", "data": "Isaly's,72 Lammas Street,TS9 9NU,,2"}, "result": {"category": "RecordAlmostMatched", "records": [{"id": "RBIP#20", "matchScore": 0.98}, {"id": "RBIP#30", "matchScore": 0.99}]}}
