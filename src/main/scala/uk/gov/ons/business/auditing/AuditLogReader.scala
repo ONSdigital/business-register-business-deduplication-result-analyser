@@ -1,7 +1,5 @@
 package uk.gov.ons.business.auditing
 
-import java.io.File
-
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Dataset, SQLContext}
 import uk.gov.ons.business.auditing.log.LogEntry
@@ -10,12 +8,12 @@ trait AuditLogReader {
   def read: Dataset[LogEntry]
 }
 
-class FileAuditLogReader(logFile: File)(implicit sqlContext: SQLContext) extends AuditLogReader {
+class FileAuditLogReader(logFilePath: String)(implicit sqlContext: SQLContext) extends AuditLogReader {
 
   override def read: Dataset[LogEntry] = {
     import sqlContext.implicits._
 
-    sqlContext.read.schema(schema).json(logFile.getPath).as[LogEntry]
+    sqlContext.read.schema(schema).json(logFilePath).as[LogEntry]
   }
 
   private def schema = {

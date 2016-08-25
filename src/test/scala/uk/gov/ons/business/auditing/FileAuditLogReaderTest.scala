@@ -12,7 +12,7 @@ class FileAuditLogReaderTest extends FlatSpec with SparkContextsSuiteMixin with 
   behavior of "File audit log reader"
 
   it should "read data from sample input file in JSON format" in {
-    val dataset: Dataset[LogEntry] = new FileAuditLogReader(new File(fixturePath("sample-audit-log.json"))).read
+    val dataset: Dataset[LogEntry] = new FileAuditLogReader(fixturePath("sample-audit-log.json")).read
 
     def assertNumberOfEntries(filterFunction: (LogEntry) => Boolean, expectedNumberOfEntries: Int): Unit = {
       dataset.filter(filterFunction).count() should be(expectedNumberOfEntries)
