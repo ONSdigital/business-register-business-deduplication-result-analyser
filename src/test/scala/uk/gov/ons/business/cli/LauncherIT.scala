@@ -6,14 +6,14 @@ import org.scalatest.{FlatSpec, Matchers}
 
 import scala.io.Source
 
-class CommandLineLauncherIT extends FlatSpec with Matchers {
+class LauncherIT extends FlatSpec with Matchers {
 
   behavior of "Audit log comparator (integration test)"
 
   it should "create audit log comparison result" in {
     val outputPath: String = createTemporaryOutputPath("comparison.csv")
 
-    CommandLineLauncher.main(Array(
+    new Launcher().launch(Array(
       "--previousAuditLogPath", getClass.getResource("/fixtures/it/audit-log-1.json").getPath,
       "--newAuditLogPath", getClass.getResource("/fixtures/it/audit-log-2.json").getPath,
       "--outputFile", outputPath
