@@ -52,6 +52,7 @@ queryOptions[6]="-p"
 tradingStatus[0]="ACTIVE"
 tradingStatus[1]="CLOSED"
 tradingStatus[2]="INSOLVENT"
+tradingStatus[3]="SUMMARY"
 
 function buildCountConditions {
     local companiesHouseCondition="NOT LIKE '%CompaniesHouse%'"
@@ -83,72 +84,57 @@ function buildCountConditions {
     done
     shift $((OPTIND-1))
 
-    return ("$description: " "business_datasources.sources $companiesHouseCondition
+    whereClauseAndDescription[0]="$description"
+    whereClauseAndDescription[1]="business_datasources.sources $companiesHouseCondition
       AND business_datasources.sources $vatCondition
-      AND business_datasources.sources $payeCondition")
+      AND business_datasources.sources $payeCondition"
 }
 
 function executeCountQuery {
-  local fromClause=$0
-  local whereClause=$1
-  return $(impala-shell -B --quiet -i '$IMPALADAEMON' -q "SELECT count(*) FROM $fromClause WHERE $whereClause")
+  local fromClause=$1
+  local whereClause=$2
+  echo $(impala-shell -B --quiet -i $IMPALADAEMON -d $DBNAME -q "SELECT count(*) FROM $fromClause WHERE $whereClause")
 }
 
 function getCountsForTradingStatus {
   countTradingStatusOutput=""
-  local fromClause="datasources_for_ids
+  local fromClause="business_datasources
     LEFT JOIN
     ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'CompaniesHouse'
      ) AS ch 
-    ON ch.id = ids.id
+    ON ch.id = business_datasources.id
     LEFT JOIN
     ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'Vat'
      ) AS vat
-    ON vat.id = ids.id
+    ON vat.id = business_datasources.id
     LEFT JOIN
     ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'Paye' 
      ) AS paye
-    ON paye.id = ids.id"
+    ON paye.id = business_datasources.id"
 
   for status in "${tradingStatus[@]}"
   do
+    statusCondition=" = '$status'"
+    if [ "$status" = "SUMMARY" ]
+    then
+      statusCondition="is not NULL"
+    fi
+
     countTradingStatusOutput="$countTradingStatusOutput \n === Trading Status: $status === \n"
+    countTradingStatusOutput="$countTradingStatusOutput Total Business Index:"
+    countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery "$fromClause" "coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) $statusCondition") \n"
 
     for option in "${queryOptions[@]}"
     do
-      whereClauseAndDescription=$(buildCountConditions $option)
-      tradingStatusWhereClause="$whereClauseAndDescription[1] 
-        AND and coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) = '$status'"
-      countTradingStatusOutput="$countTradingStatusOutput $whereClauseAndDescription[0]:"
-      countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery $fromClause $tradingStatusWhereClause) \n"
+      buildCountConditions $option
+      tradingStatusWhereClause="${whereClauseAndDescription[1]} 
+        AND coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) $statusCondition"
+      countTradingStatusOutput="$countTradingStatusOutput ${whereClauseAndDescription[0]}:"
+      countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery "$fromClause" "$tradingStatusWhereClause") \n"
     done
   done
 
-  return $countTradingStatusOutput
+  echo $countTradingStatusOutput
 }
 
-function getCountsForSourceTypes {
-  countOutput="=== SUMMARY === \n"
-  local fromClause="business_datasources"
-
-  for option in "${queryOptions[@]}"
-  do
-    whereClauseAndDescription=$(buildCountConditions $option)
-    countOutput="$countOutput $whereClauseAndDescription[0]:"
-    countOutput="$countOutput $(executeCountQuery $fromClause $whereClauseAndDescription[1]) \n"
-  done
-
-  return $countOutput
-}
-
-function getTotalCounts {
-  totalCountOutput="Total Business Index:"
-
-  totalCountQuery="SELECT count(*) FROM $DBNAME.business_datasources"
-  totalCountOutput="$totalCountOutput $(impala-shell -B --quiet -i '$IMPALADAEMON' -q "$totalCountQuery") \n"
-
-  return $totalCountOutput 
-}
- 
-echo getCountsForTradingStatus
-echo getCountsForSourceTypes
+echo -e $(getCountsForTradingStatus)
