@@ -40,8 +40,9 @@ Bash script used in an environment which has access to the `impala-shell` comman
 
 ## Output
 
-Produces counts based on the `business_datasources` view, showing the counts on how many data sources are used to make a business index record. Output is printed to the console:
+Produces counts based on the `business_datasources` view, split by `Trading Status`. The output shows how many of records from each datasource were used to make the Business Index record. A summary row is included:
 ```
+=== Trading Status: ACTIVE ===
 Total Business Index: 3
 Companies House only: 0
 Companies House and VAT only: 0
@@ -50,4 +51,9 @@ Companies House and VAT and Paye: 0
 VAT only: 1
 VAT and Paye only: 0
 Paye only: 0
+
+=== Trading Status: SUMMARY ===
+...
+...
+
 ```
