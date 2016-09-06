@@ -28,15 +28,15 @@ IMPALADAEMON=""
 while getopts ":d:i:" opt; do
     case "$opt" in
     d)
-    DBNAME=$OPTARG
+        DBNAME=$OPTARG
         ;;
     i)
-    IMPALADAEMON=$OPTARG
+        IMPALADAEMON=$OPTARG
         ;;
     \?)
-    echo "Invalid option: -$OPTARG" >&2
-    exit 1
-    ;;
+        echo "Invalid option: -$OPTARG" >&2
+        exit 1
+        ;;
     esac
 done
 shift $((OPTIND-1))
@@ -91,48 +91,48 @@ function buildCountConditions {
 }
 
 function executeCountQuery {
-  local fromClause=$1
-  local whereClause=$2
-  echo $(impala-shell -B --quiet -i $IMPALADAEMON -d $DBNAME -q "SELECT count(*) FROM $fromClause WHERE $whereClause")
+    local fromClause=$1
+    local whereClause=$2
+    echo $(impala-shell -B --quiet -i $IMPALADAEMON -d $DBNAME -q "SELECT count(*) FROM $fromClause WHERE $whereClause")
 }
 
 function getCountsForTradingStatus {
-  countTradingStatusOutput=""
-  local fromClause="business_datasources
-    LEFT JOIN
-    ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'CompaniesHouse'
-     ) AS ch 
-    ON ch.id = business_datasources.id
-    LEFT JOIN
-    ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'Vat'
-     ) AS vat
-    ON vat.id = business_datasources.id
-    LEFT JOIN
-    ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'Paye' 
-     ) AS paye
-    ON paye.id = business_datasources.id"
+    countTradingStatusOutput=""
+    local fromClause="business_datasources
+        LEFT JOIN
+        ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'CompaniesHouse'
+         ) AS ch
+        ON ch.id = business_datasources.id
+        LEFT JOIN
+        ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'Vat'
+         ) AS vat
+        ON vat.id = business_datasources.id
+        LEFT JOIN
+        ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'Paye'
+         ) AS paye
+        ON paye.id = business_datasources.id"
 
-  for status in "${tradingStatus[@]}"
-  do
-    statusCondition=" = '$status'"
-    if [ "$status" = "SUMMARY" ]
-    then
-      statusCondition="is not NULL"
-    fi
+    for status in "${tradingStatus[@]}"
+        do
+        statusCondition=" = '$status'"
+        if [ "$status" = "SUMMARY" ]
+        then
+            statusCondition="is not NULL"
+        fi
 
-    countTradingStatusOutput="$countTradingStatusOutput \n === Trading Status: $status === \n"
-    countTradingStatusOutput="$countTradingStatusOutput Total Business Index:"
-    countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery "$fromClause" "coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) $statusCondition") \n"
+        countTradingStatusOutput="$countTradingStatusOutput \n === Trading Status: $status === \n"
+        countTradingStatusOutput="$countTradingStatusOutput Total Business Index:"
+        countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery "$fromClause" "coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) $statusCondition") \n"
 
-    for option in "${queryOptions[@]}"
-    do
-      buildCountConditions $option
-      tradingStatusWhereClause="${whereClauseAndDescription[1]} 
-        AND coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) $statusCondition"
-      countTradingStatusOutput="$countTradingStatusOutput ${whereClauseAndDescription[0]}:"
-      countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery "$fromClause" "$tradingStatusWhereClause") \n"
+        for option in "${queryOptions[@]}"
+        do
+            buildCountConditions $option
+            tradingStatusWhereClause="${whereClauseAndDescription[1]}
+                AND coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) $statusCondition"
+            countTradingStatusOutput="$countTradingStatusOutput ${whereClauseAndDescription[0]}:"
+            countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery "$fromClause" "$tradingStatusWhereClause") \n"
+        done
     done
-  done
 
   echo $countTradingStatusOutput
 }
