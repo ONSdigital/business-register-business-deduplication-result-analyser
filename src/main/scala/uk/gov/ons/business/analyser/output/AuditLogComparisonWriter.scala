@@ -5,6 +5,9 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.apache.commons.csv.CSVFormat.EXCEL
 import org.apache.spark.sql.{Dataset, SQLContext}
 import uk.gov.ons.business.analyser.output.AuditLogComparisonWriter.mapper
+import uk.gov.ons.business.auditing.log.BusinessRecord
+
+import scala.language.implicitConversions
 
 object AuditLogComparisonWriter {
   lazy val mapper = new ObjectMapper().registerModule(DefaultScalaModule)
@@ -23,14 +26,10 @@ class CSVAuditLogComparisonWriter(implicit sqlContext: SQLContext) extends FileA
   }
 
   private def toCSV(comparison: AuditLogComparison): String = {
-    val lineDataFields: Array[String] = comparison.lineData.split(EXCEL.getDelimiter)
-    val comparisonFields: Array[String] = Array(
-      comparison.categoryChange,
-      mapper.writeValueAsString(comparison.recordsFromFirstAuditLog),
-      mapper.writeValueAsString(comparison.recordsFromSecondAuditLog)
-    )
+    implicit def recordsToString(records: Seq[BusinessRecord]): String = mapper.writeValueAsString(records)
 
-    EXCEL.format((lineDataFields :: comparisonFields :: Nil).flatten: _*)
+    val resultFields: List[String] = List(comparison.categoryChange, comparison.recordsFromFirstAuditLog, comparison.recordsFromSecondAuditLog)
+    comparison.lineData + EXCEL.getDelimiter + EXCEL.format(resultFields: _*)
   }
 
 }
