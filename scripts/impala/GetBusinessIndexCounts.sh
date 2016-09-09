@@ -22,83 +22,119 @@ then
     exit 1
 fi
 
-CH="CompaniesHouse"
-VAT="Vat"
-PAYE="Paye"
-
 DBNAME=""
 IMPALADAEMON=""
 
 while getopts ":d:i:" opt; do
     case "$opt" in
     d)
-    DBNAME=$OPTARG
+        DBNAME=$OPTARG
         ;;
     i)
-    IMPALADAEMON=$OPTARG
+        IMPALADAEMON=$OPTARG
         ;;
     \?)
-    echo "Invalid option: -$OPTARG" >&2
-    exit 1
-    ;;
+        echo "Invalid option: -$OPTARG" >&2
+        exit 1
+        ;;
     esac
 done
 shift $((OPTIND-1))
 
-getCount='impala-shell -B --quiet -i '$IMPALADAEMON' -q'
+queryOptions[0]="-c"
+queryOptions[1]="-c -v"
+queryOptions[2]="-c -v -p"
+queryOptions[3]="-c -p"
+queryOptions[4]="-v"
+queryOptions[5]="-v -p"
+queryOptions[6]="-p"
 
-totalCountQuery="SELECT count(*) FROM $DBNAME.business_datasources ids"
+tradingStatus[0]="ACTIVE"
+tradingStatus[1]="CLOSED"
+tradingStatus[2]="INSOLVENT"
+tradingStatus[3]="SUMMARY"
 
-chQuery="SELECT count(*) FROM $DBNAME.business_datasources ids
-WHERE ids.sources LIKE '%$CH%' 
-AND ids.sources NOT LIKE '%$VAT%' 
-AND ids.sources NOT LIKE '%$PAYE%'"
+function buildCountConditions {
+    local companiesHouseCondition="NOT LIKE '%CompaniesHouse%'"
+    local vatCondition="NOT LIKE '%Vat%'"
+    local payeCondition="NOT LIKE '%Paye%'"
 
-chVatQuery="SELECT count(*) FROM $DBNAME.business_datasources ids
-WHERE ids.sources LIKE '%$CH%' 
-AND ids.sources LIKE '%$VAT%' 
-AND ids.sources NOT LIKE '%$PAYE%'"
+    description=""
 
-chPayeQuery="SELECT count(*) FROM $DBNAME.business_datasources ids
-WHERE ids.sources LIKE '%$CH%' 
-AND ids.sources LIKE '%$PAYE%' 
-AND ids.sources NOT LIKE '%$VAT%'"
+    local OPTIND
+    while getopts "cvp" opt; do
+        case "$opt" in
+        c)
+          companiesHouseCondition="LIKE '%CompaniesHouse%'"
+          description="$description Companies House"
+          ;;
+        v)
+          vatCondition="LIKE '%Vat%'"
+          description="$description VAT"
+          ;;
+        p)
+          payeCondition="LIKE '%Paye%'"
+          description="$description Paye"
+          ;;
+        \?)
+        echo "Invalid option: -$OPTARG" >&2
+        exit 1
+        ;;
+        esac
+    done
+    shift $((OPTIND-1))
 
-chVatPayeQuery="SELECT count(*) FROM $DBNAME.business_datasources ids
-WHERE ids.sources LIKE '%$CH%' 
-AND ids.sources LIKE '%$PAYE%' 
-AND ids.sources LIKE '%$VAT%'"
+    whereClauseAndDescription[0]="$description"
+    whereClauseAndDescription[1]="business_datasources.sources $companiesHouseCondition
+      AND business_datasources.sources $vatCondition
+      AND business_datasources.sources $payeCondition"
+}
 
-vatQuery="SELECT count(*) FROM $DBNAME.business_datasources ids
-WHERE ids.sources LIKE '%$VAT%' 
-AND ids.sources NOT LIKE '%$PAYE%' 
-AND ids.sources NOT LIKE '%$CH%'"
+function executeCountQuery {
+    local fromClause=$1
+    local whereClause=$2
+    echo $(impala-shell -B --quiet -i $IMPALADAEMON -d $DBNAME -q "SELECT count(*) FROM $fromClause WHERE $whereClause")
+}
 
-vatPayeQuery="SELECT count(*) FROM $DBNAME.business_datasources ids
-WHERE ids.sources LIKE '%$VAT%' 
-AND ids.sources LIKE '%$PAYE%' 
-AND ids.sources NOT LIKE '%$CH%'"
+function getCountsForTradingStatus {
+    countTradingStatusOutput=""
+    local fromClause="business_datasources
+        LEFT JOIN
+        ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'CompaniesHouse'
+         ) AS ch
+        ON ch.id = business_datasources.id
+        LEFT JOIN
+        ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'Vat'
+         ) AS vat
+        ON vat.id = business_datasources.id
+        LEFT JOIN
+        ( SELECT id, sr.tradingstatus from businessindex, businessindex.sourcerecords sr WHERE sr.datasource = 'Paye'
+         ) AS paye
+        ON paye.id = business_datasources.id"
 
-payeQuery="SELECT count(*) FROM $DBNAME.business_datasources ids
-WHERE ids.sources LIKE '%$PAYE%' 
-AND ids.sources NOT LIKE '%$VAT%' 
-AND ids.sources NOT LIKE '%$CH%'"
+    for status in "${tradingStatus[@]}"
+        do
+        statusCondition=" = '$status'"
+        if [ "$status" = "SUMMARY" ]
+        then
+            statusCondition="is not NULL"
+        fi
 
-totalCount=$($getCount "$totalCountQuery" -r)
-ch=$($getCount "$chQuery")
-chVat=$($getCount "$chVatQuery")
-chPaye=$($getCount "$chPayeQuery")
-chVatPaye=$($getCount "$chVatPayeQuery")
-vat=$($getCount "$vatQuery")
-vatPaye=$($getCount "$vatPayeQuery")
-paye=$($getCount "$payeQuery")
+        countTradingStatusOutput="$countTradingStatusOutput \n === Trading Status: $status === \n"
+        countTradingStatusOutput="$countTradingStatusOutput Total Business Index:"
+        countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery "$fromClause" "coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) $statusCondition") \n"
 
-echo "Total Business Index: ${totalCount//[$'\n']/}"
-echo "Companies House only: $ch"
-echo "Companies House and VAT only: $chVat"
-echo "Companies House and Paye only: $chPaye"
-echo "Companies House and VAT and Paye: $chVatPaye"
-echo "VAT only: $vat"
-echo "VAT and Paye only: $vatPaye"
-echo "Paye only: $paye"
+        for option in "${queryOptions[@]}"
+        do
+            buildCountConditions $option
+            tradingStatusWhereClause="${whereClauseAndDescription[1]}
+                AND coalesce(ch.tradingstatus, vat.tradingstatus, paye.tradingstatus) $statusCondition"
+            countTradingStatusOutput="$countTradingStatusOutput ${whereClauseAndDescription[0]}:"
+            countTradingStatusOutput="$countTradingStatusOutput $(executeCountQuery "$fromClause" "$tradingStatusWhereClause") \n"
+        done
+    done
 
+  echo $countTradingStatusOutput
+}
+
+echo -e $(getCountsForTradingStatus)
